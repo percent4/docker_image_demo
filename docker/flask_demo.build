@@ -1,0 +1,61 @@
+FROM centos:7.5.1804
+
+# install related packages
+ENV ENVIRONMENT DOCKER_PROD
+RUN cd / && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+    && yum makecache \
+    && yum install -y wget aclocal supervisor automake autoconf make gcc gcc-c++ python-devel mysql-devel bzip2 libffi-devel epel-release \
+    && yum clean all
+
+# install Python3.6.8
+COPY python_dev/Python-3.6.8.tar.xz /root
+RUN cd /root \
+    && tar -xvf Python-3.6.8.tar.xz -C /usr/local/ \
+    && rm -rf Python-3.6.8.tar.xz \
+    && cd /usr/local/Python-3.6.8 \
+    && ./configure && make && make install
+
+# add gensim support
+COPY python_dev/_bz2.cpython-36m-x86_64-linux-gnu.so /usr/local/lib/python3.6/lib-dynload/_bz2.cpython-36m-x86_64-linux-gnu.so
+RUN chmod u+x /usr/local/lib/python3.6/lib-dynload/_bz2.cpython-36m-x86_64-linux-gnu.so
+RUN yum install -y bzip2* \
+    && cd /usr/lib64 \
+    && ln -s libbz2.so.1.0.6 libbz2.so.1.0
+
+
+# chinese support
+RUN yum install kde-l10n-Chinese -y \
+    && yum install glibc-common -y \
+    && localedef -c -f UTF-8 -i zh_CN zh_CN.utf8
+
+# ENV LANG zh_CN.UTF-8
+ENV LC_ALL zh_CN.UTF-8
+
+# set ENV variable WORK_DIR and copy source code
+ENV WORK_DIR /root/flask_demo/src
+COPY src $WORK_DIR
+
+# install pip3 and related Python packages
+COPY python_dev/pip-8.0.2.tar.gz /root/pip-8.0.2.tar.gz
+RUN cd /root \
+    && tar -zxvf pip-8.0.2.tar.gz \
+    && cd pip-8.0.2 \
+    && python3 setup.py build \
+    && python3 setup.py install \
+    && pip3 install --upgrade pip -i http://pypi.douban.com/simple/ --trusted-host pypi.douban.com \
+    && mkdir -m 755 -p /etc/supervisor/conf.d \
+    && pip3 install supervisor -i http://pypi.douban.com/simple/ --trusted-host pypi.douban.com \
+    && cd $WORK_DIR \
+    && pip3 install --no-cache-dir -r requirements.txt -i http://pypi.douban.com/simple/ --trusted-host pypi.douban.com \
+    && yum clean all
+
+# export network port
+EXPOSE 5000
+
+# WORK_DIR
+WORKDIR $WORK_DIR
+
+# use supervisor to run Python script
+COPY docker/supervisord.conf /etc/supervisor/supervisord.conf
+COPY docker/flask_demo.ini /etc/supervisor/conf.d/flask_demo.ini
+CMD ["/usr/local/bin/supervisord", "-c", "/etc/supervisor/supervisord.conf"]

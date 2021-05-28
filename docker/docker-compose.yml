@@ -1,0 +1,17 @@
+version: "3.4"
+services:
+  flask_demo:
+      image: flask_demo:20.12.30.1147
+      container_name: flask_demo # 容器名称，自己取名字
+      ports:  # 端口映射
+        - "15005:5000"
+      restart: always # 重启策略
+      deploy:
+        replicas: 1 # 容器分片
+      networks: # 网络名称
+        - flask_demo_new_net
+#      volumes:  # 外部数据映射
+#        - ./models:/models
+
+networks:
+  flask_demo_new_net:
